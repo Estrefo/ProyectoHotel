@@ -1,0 +1,240 @@
+﻿@page "/editarReserva/{idReserva:int}"
+@attribute [StreamRendering(true)]
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Radzen
+@using Radzen.Blazor
+@using TEST.Controllers.Habitaciones
+@using TEST.Controllers.Reservas
+@using TEST.Modelos
+@using TEST.Modelos.DTOs
+
+@inject NavigationManager NavigationManager
+@inject IJSRuntime jsRuntime
+@inject IReservasController ReservasController
+@inject IHabitacionesController HabitacionesController
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject UserManager<Usuario> UserManager
+
+
+
+<h3>Editar Reserva</h3>
+
+@if (reservaDto == null)
+{
+    <span class="loader"></span>
+}
+else
+{
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger">@errorMessage</div>
+    }
+
+    <EditForm Model="reservaDto" FormName="ReservaFechas" OnValidSubmit="@HandleSubmit">
+        <RadzenFieldset Text="Editar Reserva">
+            <div class="mt-4">
+                <RadzenStack Gap="1rem">
+                    <RadzenTabs SelectedIndex="0">
+                        <Tabs>
+                            <RadzenRow AlignItems="AlignItems.Center">
+                                <RadzenColumn>
+                                    <RadzenRow>
+                                        <RadzenColumn>
+                                            <label class="form-label">Seleccione fecha de entrada:</label>
+                                            <InputDate class="form-control" @bind-Value="reservaDto.FechaEntrada"></InputDate>
+                                        </RadzenColumn>
+                                    </RadzenRow>
+                                    <RadzenRow>
+                                        <RadzenColumn>
+                                            <label class="form-label">Seleccione una fecha de salida:</label>
+                                            <InputDate class="form-control" @bind-Value="reservaDto.FechaSalida"></InputDate>
+                                        </RadzenColumn>
+                                    </RadzenRow>
+
+                                    <!-- Botón para buscar habitaciones -->
+                                    <RadzenRow>
+                                        <RadzenColumn>
+                                            <input class="btn btn-success" type="button" value="Buscar" @onclick="BuscarHabitaciones" />
+                                        </RadzenColumn>
+                                    </RadzenRow>
+
+                                    <RadzenRow>
+                                        <RadzenColumn>
+                                            <label class="form-label">Seleccione la habitación:</label>
+                                            <InputSelect class="form-control" @bind-Value="reservaDto.NumeroH" Disabled="@(!habitaciones?.Any() ?? true)">
+                                                <option value="">Seleccione una habitación</option>
+                                                @if (habitaciones != null)
+                                                {
+                                                    @foreach (var habitacion in habitaciones)
+                                                    {
+                                                        <option value="@habitacion.Numero">@($"Número: {habitacion.Numero} - Planta: {habitacion.Planta} - Precio: {habitacion.Precio}")</option>
+                                                    }
+                                                }
+                                            </InputSelect>
+                                        </RadzenColumn>
+                                    </RadzenRow>
+                                    <RadzenRow>
+                                        <RadzenColumn>
+                                            <input class="btn btn-primary" type="submit" value="Guardar">
+                                        </RadzenColumn>
+                                    </RadzenRow>
+                                    <RadzenRow>
+                                        <RadzenColumn class="d-flex gap-4">
+                                            <input class="btn btn-warning" type="button" value="Cancelar" @onclick="HandleCancel">
+                                        </RadzenColumn>
+                                    </RadzenRow>
+                                </RadzenColumn>
+                            </RadzenRow>
+                        </Tabs>
+                    </RadzenTabs>
+                </RadzenStack>
+            </div>
+        </RadzenFieldset>
+    </EditForm>
+}
+
+@code {
+    [Parameter] public int idReserva { get; set; }
+    ReservaDTO? reservaDto { get; set; }
+    HabitacionDTO? habitacionDto { get; set; }
+    IEnumerable<HabitacionDTO?>? habitaciones { get; set; }
+    private string? userId { get; set; }
+    private string errorMessage = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        if (!user.Identity.IsAuthenticated)
+        {
+            NavigationManager.NavigateTo("/Account/AccessDenied");
+            return;
+        }
+
+        userId = await UserManager.GetUserIdAsync(await UserManager.GetUserAsync(user));
+
+        // Obtener la reserva para editarla
+        reservaDto = await ReservasController.GetReservaById(idReserva);
+
+        if (reservaDto == null)
+        {
+            errorMessage = "La reserva no existe.";
+            return;
+        }
+
+        // Cargar las habitaciones disponibles para las fechas de la reserva
+        await BuscarHabitaciones();
+    }
+
+    // Método para buscar habitaciones disponibles
+    private async Task BuscarHabitaciones()
+    {
+        // Validar las fechas antes de buscar
+        if (reservaDto.FechaEntrada == default || reservaDto.FechaSalida == default)
+        {
+            errorMessage = "Por favor, seleccione ambas fechas.";
+            return;
+        }
+
+        if (reservaDto.FechaEntrada < DateTime.Today || reservaDto.FechaSalida < DateTime.Today)
+        {
+            errorMessage = "Las fechas no pueden ser anteriores al día de hoy.";
+            return;
+        }
+
+        if (reservaDto.FechaEntrada > reservaDto.FechaSalida)
+        {
+            errorMessage = "La fecha de entrada debe ser anterior a la fecha de salida.";
+            return;
+        }
+
+        // Obtener habitaciones disponibles para las fechas editadas
+        habitaciones = await HabitacionesController.GetHabitacionesDisponibles(reservaDto.FechaEntrada, reservaDto.FechaSalida);
+
+        // Habilitar el select si se encuentran habitaciones
+        if (habitaciones?.Any() ?? false)
+        {
+            errorMessage = string.Empty;
+
+            // Calcular el número de noches para el precio total
+            int numeroDeNoches = (reservaDto.FechaSalida - reservaDto.FechaEntrada).Value.Days;
+
+            // Calcular el total basado en el número de noches y el precio de la habitación seleccionada
+            if (reservaDto.NumeroH > 0)  // Verificar que se haya seleccionado una habitación
+            {
+                habitacionDto = habitaciones.FirstOrDefault(h => h.Numero == reservaDto.NumeroH);
+                if (habitacionDto != null)
+                {
+                    reservaDto.Total = habitacionDto.Precio * numeroDeNoches;
+                }
+            }
+        }
+        else
+        {
+            errorMessage = "No hay habitaciones disponibles para las fechas seleccionadas.";
+        }
+    }
+
+    private async Task HandleSubmit()
+    {
+        errorMessage = string.Empty;
+
+        // Validar fechas
+        if (reservaDto.FechaEntrada == default || reservaDto.FechaSalida == default)
+        {
+            errorMessage = "Por favor, seleccione ambas fechas.";
+            return;
+        }
+
+        if (reservaDto.FechaEntrada < DateTime.Today || reservaDto.FechaSalida < DateTime.Today)
+        {
+            errorMessage = "Las fechas no pueden ser anteriores al día de hoy.";
+            return;
+        }
+
+        if (reservaDto.FechaEntrada > reservaDto.FechaSalida)
+        {
+            errorMessage = "La fecha de entrada debe ser anterior a la fecha de salida.";
+            return;
+        }
+
+        // Validar habitación seleccionada
+        if (reservaDto.NumeroH == 0) // Considerando que 0 indica que no se seleccionó ninguna habitación
+        {
+            errorMessage = "Debe seleccionar una habitación.";
+            return;
+        }
+
+        // Obtener la habitación seleccionada
+        habitacionDto = await HabitacionesController.GetHabitacionById(reservaDto.NumeroH);
+
+        // Actualizar la reserva
+        reservaDto.IdUsuario = userId;
+        reservaDto.FechaReserva = DateTime.Now;
+
+        // Calcular el número de noches para el precio total
+        int numeroDeNoches = (reservaDto.FechaSalida - reservaDto.FechaEntrada).Value.Days;
+        reservaDto.Total = habitacionDto.Precio * numeroDeNoches;
+
+        // Actualizar la reserva en la base de datos
+        await ReservasController.ActualizarReserva(reservaDto);
+
+        // Actualizar la disponibilidad de la habitación
+        habitacionDto.Disponible = false;
+        HabitacionesController.EditarHabitacion(habitacionDto);
+
+        NavigationManager.NavigateTo("/tablaReservas"); // Redirigir a la lista de reservas después de guardar
+    }
+
+    private async void HandleCancel()
+    {
+        bool cancelar = await jsRuntime.InvokeAsync<bool>("confirm", "Se perderán los datos introducidos. ¿Deseas cancelar la operación?");
+        if (cancelar)
+            NavigationManager.NavigateTo("/tablaReservas");
+    }
+}

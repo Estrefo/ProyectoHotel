@@ -1,0 +1,166 @@
+﻿@page "/roles"
+@attribute [StreamRendering(true)]
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+@inject RoleManager<Rol> RoleManager
+@inject UserManager<Usuario> UserManager
+@inject NavigationManager NavigationManager
+
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using TEST.Modelos
+@using TEST.Modelos.DTOs
+@using TEST.Identity
+
+<style>
+    .roles-container {
+        margin-top: 120px;
+        padding: 20px;
+        max-width: 800px;
+        margin-left: auto;
+        margin-right: auto;
+        background-color: #f9f9f9;
+        border-radius: 10px;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    }
+
+    .roles-header {
+        text-align: center;
+        color: #4a4a4a;
+        font-size: 24px;
+        margin-bottom: 20px;
+        font-family: 'Bodoni Moda', serif;
+    }
+
+    .form-group {
+        margin-bottom: 15px;
+    }
+
+        .form-group label {
+            font-weight: bold;
+            margin-bottom: 5px;
+            display: block;
+            color: #4a4a4a;
+            font-family: 'Bodoni Moda', serif;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+
+    .btn-primary {
+        background-color: #007bff;
+        color: #fff;
+        padding: 10px 15px;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        font-family: 'Bodoni Moda', serif;
+    }
+
+        .btn-primary:hover {
+            background-color: #0056b3;
+        }
+
+    .roles-table {
+        margin-top: 30px;
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+        .roles-table th,
+        .roles-table td {
+            padding: 10px;
+            text-align: left;
+            border: 1px solid #ccc;
+        }
+
+        .roles-table th {
+            background-color: #007bff;
+            color: #fff;
+            font-family: 'Bodoni Moda', serif;
+        }
+
+        .roles-table tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+
+        .roles-table tr:hover {
+            background-color: #e8f4ff;
+        }
+</style>
+
+<div class="roles-container">
+    <h3 class="roles-header">Gestión de Roles</h3>
+
+    <EditForm Model="@Rol" OnValidSubmit="HandleSubmit" FormName="Roles">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <!-- Campo para el nombre del rol -->
+        <div class="form-group">
+            <label for="rolName">Nombre del Rol</label>
+            <InputText id="rolName" @bind-Value="Rol.Name" class="form-control" />
+        </div>
+
+        <!-- Campo para la sección -->
+        <div class="form-group">
+            <label for="rolSection">Sección</label>
+            <InputText id="rolSection" @bind-Value="Rol.Seccion" class="form-control" />
+        </div>
+
+        <!-- Botón de enviar -->
+        <button type="submit" class="btn-primary">Registrar</button>
+    </EditForm>
+
+    
+</div>
+
+@code {
+    private List<Rol>? MyRoles;
+
+    [SupplyParameterFromForm]
+    private RoleDTO Rol { get; set; } = new RoleDTO();
+
+    private async Task<List<Rol>> LoadRolesAsync()
+    {
+        return await RoleManager.Roles.ToListAsync();
+    }
+
+    private async Task HandleSubmit()
+    {
+        try
+        {
+            var newRol = new Rol
+                {
+                    Name = Rol.Name,
+                    FechaAlta = DateTime.Now,
+                    Seccion = Rol.Seccion
+                };
+
+            var res = await RoleManager.CreateAsync(newRol);
+            if (res.Succeeded)
+            {
+                var user = await UserManager.FindByEmailAsync("miguelprf14@gmail.com");
+                if (user != null)
+                {
+                    await UserManager.AddToRoleAsync(user, Rol.Name);
+                }
+
+                MyRoles = await LoadRolesAsync();
+                Rol = new RoleDTO();
+            }
+            else
+            {
+                Console.WriteLine("Error al crear el rol: " + string.Join(", ", res.Errors.Select(e => e.Description)));
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("Error al procesar la solicitud: " + ex.Message);
+        }
+    }
+}

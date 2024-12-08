@@ -1,0 +1,193 @@
+﻿@page "/tablaServicios"
+@attribute [StreamRendering(true)]
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Radzen
+@using Radzen.Blazor
+@using TEST.Controllers.Servicios
+@using TEST.Controllers.ServiciosUsuarios
+@using TEST.Modelos
+@using TEST.Modelos.DTOs
+
+@inject NavigationManager NavigationManager
+@inject IJSRuntime jsRuntime
+@inject IServiciosUsuariosController ServiciosUsuariosController
+@inject IServiciosController ServiciosController
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject UserManager<Usuario> UserManager
+
+<style>
+    .tabla {
+        margin-top: 48px;
+    }
+</style>
+
+<h2>SERVICIOS CONTRATADOS</h2>
+
+@if (serviciosUsuariosDto == null)
+{
+    <span class="loader"></span>
+}
+else if (!serviciosUsuariosDto.Any())
+{
+
+    <p>No hay ningún servicio contratado</p>
+}
+else
+{
+    <RadzenDataGrid @ref=grid
+                    AllowFiltering="true"
+                    AllowColumnResize="true"
+                    AllowAlternatingRows="false"
+                    FilterMode="FilterMode.Simple"
+                    AllowSorting="true"
+                    PageSize="7"
+                    AllowPaging="true"
+                    PagerHorizontalAlign="HorizontalAlign.Left"
+                    ShowPagingSummary="true"
+                    Data="@serviciosUsuariosDto"
+                    ColumnWidth="250px"
+                    SelectionMode="DataGridSelectionMode.Single"
+                    @bind-Value=@selectedServicioUsuario
+                    class="tabla">
+        <Columns>
+
+            <RadzenDataGridColumn Property="Id_Servicio" Title="Servicio" Width="50px" />
+            <RadzenDataGridColumn Property="Fecha" Title="Fecha del servicio" Width="50px" />
+
+            @if (isAdmin)
+            {
+                <RadzenDataGridColumn Title="Usuario" Width="50px" Filterable="true">
+                    <Template Context="data">
+                        @GetNifForReserva(data)
+                    </Template>
+                </RadzenDataGridColumn>
+            }
+
+
+            @if (isAdmin)
+            {
+                <RadzenDataGridColumn Filterable="false" Width="50px" Sortable="false" TextAlign="TextAlign.Center">
+                    <Template Context="data">
+                        <RadzenButton Click="@(() => EliminarServicio(data))" Text="Eliminar" ButtonStyle="ButtonStyle.Danger" />
+                    </Template>
+                </RadzenDataGridColumn>
+
+                <RadzenDataGridColumn Width="50px" TextAlign="TextAlign.Center">
+                    <Template Context="data">
+                        <RadzenButton Click="@(() => EditarServicio(data))" Text="Editar" ButtonStyle="ButtonStyle.Info" />
+                    </Template>
+                </RadzenDataGridColumn>
+            }
+
+            <RadzenDataGridColumn Filterable="false" Width="50px" Sortable="false" TextAlign="TextAlign.Center">
+                <Template Context="data">
+                    <RadzenButton Click="@(() => DescargarPdf(data))" Text="Descargar" ButtonStyle="ButtonStyle.Primary" />
+                </Template>
+            </RadzenDataGridColumn>
+        </Columns>
+    </RadzenDataGrid>
+}
+
+@code {
+    RadzenDataGrid<ServicioUsuarioDTO?>? grid;
+    IEnumerable<ServicioUsuarioDTO>? serviciosUsuariosDto = null;
+    IList<ServicioUsuarioDTO?>? selectedServicioUsuario = null;
+    private string? userId { get; set; }
+    private bool isAdmin = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        // Obtener el ID del usuario autenticado
+        userId = await UserManager.GetUserIdAsync(await UserManager.GetUserAsync(user));
+
+        // Verificar si el usuario tiene el rol de "Administrador"
+        var usuario = await UserManager.GetUserAsync(user);
+        isAdmin = await UserManager.IsInRoleAsync(usuario, "admin");
+
+        // Cargar servicios contratados según el rol del usuario
+        if (isAdmin)
+        {
+            // Obtener todos los servicios contratados
+            serviciosUsuariosDto = await ServiciosUsuariosController.GetServiciosUsuarios();
+        }
+        else
+        {
+            // Obtener solo los servicios contratados por el usuario actual
+            var todosServicios = await ServiciosUsuariosController.GetServiciosUsuarios();
+            serviciosUsuariosDto = todosServicios.Where(s => s.Id_Usuario == userId).ToList();
+        }
+    }
+
+    private async Task DescargarPdf(ServicioUsuarioDTO servicioUsuario)
+    {
+        //hacer consulta find servicio by id
+        // Obtener el servicio asociado (asumiendo que tienes una clase de servicio y un servicio en tu contexto)
+        var idServicio = servicioUsuario.Id_Servicio;
+
+        var servicio = await ServiciosController.GetServicioById(idServicio);
+        // Obtener el usuario asociado
+        var usuario = await UserManager.FindByIdAsync(servicioUsuario.Id_Usuario);
+
+        // Verificar que ambos existan
+        if (servicio == null || usuario == null)
+        {
+            // Si no se encuentra el servicio o usuario, manejar el error
+            return;
+        }
+
+        // Obtener el NIF del usuario (si está disponible)
+        string nif = usuario?.Nif ?? "No disponible";  // Si el NIF no está disponible, mostrar "No disponible"
+
+        // Obtener la fecha del servicio (si es nula, pasar "No disponible")
+        string fechaServicio = servicioUsuario.Fecha?.ToString("yyyy-MM-dd") ?? "No disponible";
+
+        // Obtener el precio del servicio (suponiendo que tienes un campo 'Precio' en la tabla de servicios)
+        decimal precioServicio = servicio.Precio;
+
+        string horaServicio = servicioUsuario.Fecha?.ToString("HH:mm") ?? "No disponible";
+
+        // Generar el PDF con los datos obtenidos
+        await jsRuntime.InvokeVoidAsync("GenerarPdfServicio",
+    servicioUsuario.Id_Servicio,      // ID del servicio
+    nif,                              // NIF del usuario
+    servicio.Nombre,                  // Nombre del servicio
+    fechaServicio, // Fecha del servicio en formato adecuado
+    horaServicio,   // Hora del servicio en formato 24 horas
+    "2",                    // Duración en horas
+    precioServicio                    // Total a pagar
+    );              // Precio del servicio
+    }
+
+    private async Task EliminarServicio(ServicioUsuarioDTO servicio)
+    {
+        // Confirmación antes de eliminar
+        var confirm = await jsRuntime.InvokeAsync<bool>("confirm", "¿Estás seguro de que quieres eliminar este servicio?");
+        if (confirm)
+        {
+            await ServiciosUsuariosController.EliminarServicioUsuario(servicio.Id);
+            serviciosUsuariosDto = serviciosUsuariosDto.Where(s => s.Id != servicio.Id).ToList();
+        }
+    }
+
+    private void EditarServicio(ServicioUsuarioDTO servicio)
+    {
+        // Redirigir a la página de edición del servicio
+        NavigationManager.NavigateTo($"/editarServicio/{servicio.Id}");
+    }
+
+    private string GetNifForReserva(ServicioUsuarioDTO servicioUsuario)
+    {
+        // Obtener el usuario asociado a la reserva de forma síncrona
+        var usuario = UserManager.FindByIdAsync(servicioUsuario.Id_Usuario).Result;
+
+        // Devolver el NIF, si está disponible
+        return usuario?.Nif ?? "No disponible"; // Si no tiene NIF, mostrar "No disponible"
+    }
+}

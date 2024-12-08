@@ -1,0 +1,241 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <base href="/" />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+    <link href="_content/Blazor.Bootstrap/blazor.bootstrap.css" rel="stylesheet" />
+    <link rel="stylesheet" href="bootstrap/bootstrap.min.css" />
+    <link rel="stylesheet" href="app.css" />
+    <link rel="stylesheet" href="_content/Radzen.Blazor/css/material-base.css">
+    <link rel="stylesheet" href="TEST.styles.css" />
+    <link rel="icon" type="image/png" href="logo.png" />
+    <HeadOutlet />
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+        }
+    </style>
+</head>
+<body>
+
+
+    <Routes />
+    <script src="_framework/blazor.web.js"></script>
+    <script src="_content/Radzen.Blazor/Radzen.Blazor.js?v=@(typeof(Radzen.Colors).Assembly.GetName().Version)"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
+    <!-- Add chart.js reference if chart components are used in your application. -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.0.1/chart.umd.js" integrity="sha512-gQhCDsnnnUfaRzD8k1L5llCCV6O9HN09zClIzzeJ8OJ9MpGmIlCxm+pdCkqTwqJ4JcjbojFr79rl2F1mzcoLMQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <!-- Add chartjs-plugin-datalabels.min.js reference if chart components with data label feature is used in your application. -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js" integrity="sha512-JPcRR8yFa8mmCsfrw4TNte1ZvF1e3+1SdGMslZvmrzDYxS69J7J49vkFL8u6u8PlPJK+H3voElBtUCzaXj+6ig==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <!-- Add sortable.js reference if SortableList component is used in your application. -->
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/1.0.272/jspdf.debug.js"></script>
+
+
+    <script>
+        window.GenerarPDF = async (idReserva, nif, numeroH, fechaEntrada, fechaSalida, fechaReserva, precioNoche, total) => {
+            try {
+                // Crear un nuevo documento PDF
+                var pdf = new jsPDF();
+
+                // Cabecera con fondo azul
+                const headerHeight = 30; // Altura de la cabecera
+                pdf.setFillColor(0, 102, 204); // Azul RGB
+                pdf.rect(0, 0, 210, headerHeight, 'F'); // Rectángulo de fondo (ancho: 210 para cubrir todo el A4)
+
+                // Añadir el texto de la cabecera alineado a la izquierda
+                pdf.setFont("helvetica", "bold");
+                pdf.setFontSize(20);
+                pdf.setTextColor(255, 255, 255); // Texto blanco
+                pdf.text('Hotel Brisa Azul', 10, 15); // Alineado a la izquierda
+
+                pdf.setFontSize(12);
+                pdf.text('Dirección: C. Maestranza, 26, Málaga-Este, 29016 Málaga, España', 10, 22);
+                pdf.text('Teléfono:+34 687 42 06 56', 10, 28);
+
+                // Título de la factura
+                let y = headerHeight + 10; // Ajustar después de la cabecera
+                pdf.setTextColor(0, 0, 0); // Texto negro
+                pdf.setFontSize(18);
+                pdf.text('Factura de Reserva', 10, y); // Alineado a la izquierda
+
+                // Subtítulo con el ID de la reserva
+                y += 10;
+                pdf.setFontSize(12);
+                pdf.text('Reserva ID: ' + idReserva, 10, y); // Alineado a la izquierda
+
+                // Dibuja una línea horizontal
+                y += 5;
+                pdf.setLineWidth(0.5);
+                pdf.line(10, y, 200, y); // Línea alineada a la izquierda
+
+                // Espaciado para los detalles
+                y += 10;
+                pdf.setFontSize(12);
+                pdf.setFont("helvetica", "bold");
+                pdf.text('Detalles de la Reserva:', 10, y); // Alineado a la izquierda
+
+                // Tabla de detalles de la reserva
+                y += 8;
+                pdf.setFont("helvetica", "normal");
+                pdf.setFontSize(11);
+                const lineHeight = 6;
+
+                pdf.text(`NIF Usuario:`, 10, y);
+                pdf.text(`${nif}`, 60, y);
+                y += lineHeight;
+
+                pdf.text(`Número de Habitación:`, 10, y);
+                pdf.text(`${numeroH}`, 60, y);
+                y += lineHeight;
+
+                pdf.text(`Fecha de Entrada:`, 10, y);
+                pdf.text(`${fechaEntrada}`, 60, y);
+                y += lineHeight;
+
+                pdf.text(`Fecha de Salida:`, 10, y);
+                pdf.text(`${fechaSalida}`, 60, y);
+                y += lineHeight;
+
+                pdf.text(`Fecha de Reserva:`, 10, y);
+                pdf.text(`${fechaReserva}`, 60, y);
+                y += lineHeight;
+
+                pdf.text(`Precio por noche:`, 10, y);
+                pdf.text(`${precioNoche.toFixed(2)}€`, 60, y);
+                y += lineHeight;
+
+                // Línea horizontal para separar total
+                y += 8;
+                pdf.setLineWidth(0.5);
+                pdf.line(10, y, 200, y);
+
+                // Total a pagar
+                y += 10;
+                pdf.setFontSize(14);
+                pdf.setFont("helvetica", "bold");
+                pdf.text('Total a pagar:', 10, y);
+                pdf.setTextColor(0, 102, 204); // Azul
+                pdf.text(`${total.toFixed(2)}€`, 60, y);
+
+                // Agregar mensaje final
+                y += 20;
+                pdf.setFontSize(10);
+                pdf.setFont("helvetica", "italic");
+                pdf.setTextColor(0, 0, 0); // Negro
+                pdf.text('Gracias por su reserva. Si tiene alguna pregunta, contáctenos.', 10, y); // Alineado a la izquierda
+
+                // Guardar el archivo PDF con el nombre basado en el ID de la reserva
+                pdf.save('Factura_Reserva_' + idReserva + '.pdf');
+            } catch (error) {
+                console.error("Error generando el PDF:", error);
+            }
+        };
+    </script>
+
+
+
+    <script>
+        window.GenerarPdfServicio = async (idServicio, nif, nombre, fechaServicio, horaServicio, duracion, total) => {
+            try {
+                // Crear un nuevo documento PDF
+                var pdf = new jsPDF();
+
+                // Cabecera con fondo azul
+                const headerHeight = 30; // Altura de la cabecera
+                pdf.setFillColor(0, 102, 204); // Azul RGB
+                pdf.rect(0, 0, 210, headerHeight, 'F'); // Rectángulo de fondo (ancho: 210 para cubrir todo el A4)
+
+                // Añadir el texto de la cabecera alineado a la izquierda
+                pdf.setFont("helvetica", "bold");
+                pdf.setFontSize(20);
+                pdf.setTextColor(255, 255, 255); // Texto blanco
+                pdf.text('Hotel Brisa Azul', 10, 15); // Alineado a la izquierda
+
+                pdf.setFontSize(12);
+                pdf.text('Dirección: C. Maestranza, 26, Málaga-Este, 29016 Málaga, España', 10, 22);
+                pdf.text('Teléfono:+34 687 42 06 56', 10, 28);
+                // Inicializar la coordenada vertical `y`
+                let y = headerHeight + 10;
+
+                // Título de la factura
+                pdf.setTextColor(0, 0, 0); // Texto negro
+                pdf.setFontSize(18);
+                pdf.text('Factura de Servicio', 10, y); // Alineado a la izquierda
+
+                // Subtítulo con el ID del servicio
+                y += 10;
+                pdf.setFontSize(12);
+                pdf.text('Servicio ID: ' + idServicio, 10, y); // Alineado a la izquierda
+
+                // Dibuja una línea horizontal
+                y += 5;
+                pdf.setLineWidth(0.5);
+                pdf.line(10, y, 200, y); // Línea alineada a la izquierda
+
+                // Espaciado para los detalles
+                y += 10;
+                pdf.setFontSize(12);
+                pdf.setFont("helvetica", "bold");
+                pdf.text('Detalles del Servicio:', 10, y); // Alineado a la izquierda
+
+                // Tabla de detalles del servicio
+                y += 8;
+                pdf.setFont("helvetica", "normal");
+                pdf.setFontSize(11);
+                const lineHeight = 6;
+
+                pdf.text(`NIF Usuario:`, 10, y);
+                pdf.text(`${nif}`, 60, y);
+                y += lineHeight;
+
+                pdf.text(`Servicio:`, 10, y);
+                pdf.text(`${nombre}`, 60, y);
+                y += lineHeight;
+
+                pdf.text(`Fecha del Servicio:`, 10, y);
+                pdf.text(`${fechaServicio} ${horaServicio}`, 60, y); // Incluye la fecha y la hora
+                y += lineHeight;
+
+                pdf.text(`Duración:`, 10, y);
+                pdf.text(`${duracion} horas`, 60, y); // Añade la duración
+                y += lineHeight;
+
+                // Línea horizontal para separar total
+                y += 8;
+                pdf.setLineWidth(0.5);
+                pdf.line(10, y, 200, y);
+
+                // Total a pagar
+                y += 10;
+                pdf.setFontSize(14);
+                pdf.setFont("helvetica", "bold");
+                pdf.text('Total a pagar:', 10, y);
+                pdf.setTextColor(0, 102, 204); // Azul
+                pdf.text(`${total.toFixed(2)}€`, 60, y);
+
+                // Agregar mensaje final
+                y += 20;
+                pdf.setFontSize(10);
+                pdf.setFont("helvetica", "italic");
+                pdf.setTextColor(0, 0, 0); // Negro
+                pdf.text('Gracias por utilizar nuestros servicios. Si tiene alguna pregunta, contáctenos.', 10, y); // Alineado a la izquierda
+
+                // Guardar el archivo PDF con el nombre basado en el ID del servicio
+                pdf.save('Factura_Servicio_' + idServicio + '.pdf');
+            } catch (error) {
+                console.error("Error generando el PDF:", error);
+            }
+        };
+    </script>
+
+
+
+
+</body>
+
+</html>

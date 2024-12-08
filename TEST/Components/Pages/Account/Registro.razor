@@ -1,0 +1,238 @@
+﻿@page "/registro"
+@attribute [StreamRendering(true)]
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+@using AutoMapper
+@using Microsoft.AspNetCore.Identity
+@using TEST.Modelos;
+@using TEST.Modelos.DTOs
+@inject NavigationManager NavigationManager
+@inject IMapper _mapper
+@inject UserManager<Usuario> _userManager
+
+<style>
+    .register-form-container {
+        max-width: 500px;
+        margin: 120px auto; /* Centra el formulario verticalmente */
+        background: #ffffff; /* Fondo blanco para el formulario */
+        padding: 30px;
+        border-radius: 10px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); /* Sombra suave */
+        font-family: 'Bodoni Moda', serif; /* Aplica la fuente */
+    }
+
+    .register-title {
+        text-align: center;
+        font-size: 28px;
+        font-weight: bold;
+        color: #333333;
+        margin-bottom: 20px;
+    }
+
+    .form-group label {
+        font-weight: 600;
+        color: #555555;
+    }
+
+    .form-control {
+        border-radius: 8px;
+        border: 1px solid #ddd;
+        padding: 10px;
+        font-size: 14px;
+    }
+
+    .form-control:focus {
+        border-color: #4a90e2;
+        box-shadow: 0 0 5px rgba(74, 144, 226, 0.5);
+    }
+
+    .btn-primary {
+        background: #4a90e2;
+        border: none;
+        border-radius: 8px;
+        padding: 10px;
+        font-size: 16px;
+        font-weight: bold;
+        transition: background 0.3s;
+    }
+
+    .btn-primary:hover {
+        background: #357ab8;
+    }
+
+    .alert {
+        font-size: 14px;
+        margin-top: 15px;
+    }
+
+    .error-message {
+        color: red;
+        font-size: 14px;
+        margin-top: 5px;
+    }
+
+</style>
+
+<div class="register-form-container">
+    <h3 class="register-title">Registrarse</h3>
+    <EditForm Model="registerModel" OnValidSubmit="@HandleValidSubmit" FormName="RegisterForm">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="alert alert-danger">
+                @errorMessage
+            </div>
+        }
+
+        <div class="form-group mb-3">
+            <label for="userName">Nombre</label>
+            <InputText id="userName" class="form-control" @bind-Value="registerModel.UserName"></InputText>
+            <ValidationMessage For="@(() => registerModel.UserName)" class="error-message" />
+        </div>
+
+        <div class="form-group mb-3">
+            <label for="nif">NIF</label>
+            <InputText id="nif" class="form-control" @bind-Value="registerModel.Nif"></InputText>
+            <ValidationMessage For="@(() => registerModel.Nif)" class="error-message" />
+        </div>
+
+        <div class="form-group mb-3">
+            <label for="phoneNumber">Teléfono</label>
+            <InputText id="phoneNumber" class="form-control" @bind-Value="registerModel.PhoneNumber"></InputText>
+            <ValidationMessage For="@(() => registerModel.PhoneNumber)" class="error-message" />
+        </div>
+
+        <div class="form-group mb-3">
+            <label for="email">Correo Electrónico</label>
+            <InputText id="email" class="form-control" @bind-Value="registerModel.Email"></InputText>
+            <ValidationMessage For="@(() => registerModel.Email)" class="error-message" />
+        </div>
+
+        <div class="form-group mb-3">
+            <label for="password">Contraseña</label>
+            <InputText id="password" type="password" class="form-control" @bind-Value="registerModel.Password"></InputText>
+            <ValidationMessage For="@(() => registerModel.Password)" class="error-message" />
+        </div>
+
+        <div class="form-group mb-3">
+            <label for="confirmPassword">Confirmar Contraseña</label>
+            <InputText id="confirmPassword" type="password" class="form-control" @bind-Value="registerModel.Password2"></InputText>
+            <ValidationMessage For="@(() => registerModel.Password2)" class="error-message" />
+        </div>
+
+        <button type="submit" class="btn btn-primary w-100">Registrarse</button>
+    </EditForm>
+</div>
+
+@code {
+    [SupplyParameterFromForm]
+    RegisterDTO? registerModel { get; set; } = new RegisterDTO();
+
+    [Parameter] public string ReturnUrl { get; set; }
+
+    private string? errorMessage; // Variable para manejar el mensaje de error
+
+    // Validación personalizada del nombre
+    private bool ValidateUserName(string userName)
+    {
+        // Asegúrate de que no contenga números
+        return !userName.Any(char.IsDigit);
+    }
+
+    // Validación del NIF (8 dígitos + 1 letra mayúscula)
+    private bool ValidateNif(string nif)
+    {
+        var regex = @"^\d{8}[A-Z]$"; // Expresión regular para 8 números seguidos de una letra mayúscula
+        return System.Text.RegularExpressions.Regex.IsMatch(nif, regex);
+    }
+
+    // Validación del teléfono (9 dígitos)
+    private bool ValidatePhoneNumber(string phoneNumber)
+    {
+        var regex = @"^\d{9}$"; // Expresión regular para 9 dígitos
+        return System.Text.RegularExpressions.Regex.IsMatch(phoneNumber, regex);
+    }
+
+    // Validación para verificar si algún campo está vacío
+    private bool IsAnyFieldEmpty()
+    {
+        return string.IsNullOrEmpty(registerModel.UserName) ||
+               string.IsNullOrEmpty(registerModel.Nif) ||
+               string.IsNullOrEmpty(registerModel.PhoneNumber) ||
+               string.IsNullOrEmpty(registerModel.Email) ||
+               string.IsNullOrEmpty(registerModel.Password) ||
+               string.IsNullOrEmpty(registerModel.Password2);
+    }
+
+    public async Task HandleValidSubmit()
+    {
+        errorMessage = null; // Resetear mensaje de error antes de procesar
+
+        // Verificar si algún campo está vacío
+        if (IsAnyFieldEmpty())
+        {
+            errorMessage = "Todos los campos son obligatorios.";
+            return; // Salir si algún campo está vacío
+        }
+
+        // Validar que las contraseñas coinciden
+        if (registerModel.Password != registerModel.Password2)
+        {
+            errorMessage = "Las contraseñas no coinciden";
+            return; // Salir de la función si las contraseñas no coinciden
+        }
+
+        // Validar que el nombre no contenga números
+        if (!ValidateUserName(registerModel.UserName))
+        {
+            errorMessage = "El nombre no puede contener números.";
+            return;
+        }
+
+        // Validar el NIF
+        if (!ValidateNif(registerModel.Nif))
+        {
+            errorMessage = "El NIF debe tener 8 números seguidos de una letra mayúscula.";
+            return;
+        }
+
+        // Validar el teléfono
+        if (!ValidatePhoneNumber(registerModel.PhoneNumber))
+        {
+            errorMessage = "El teléfono debe tener 9 dígitos.";
+            return;
+        }
+
+        try
+        {
+            registerModel.Email = registerModel.Email.ToLower();
+
+            // Mapeamos el DTO a la entidad Usuario
+            var user = _mapper.Map<Usuario>(registerModel);
+
+            var result = await _userManager.CreateAsync(user, registerModel.Password);
+
+            if (result.Succeeded)
+            {
+                NavigationManager.NavigateTo(ReturnUrl ?? "/");
+            }
+            else
+            {
+                // Si la creación falla, agregamos los errores a la variable errorMessage
+                errorMessage = "Hubo un error al registrar el usuario. Intenta nuevamente.";
+                foreach (var error in result.Errors)
+                {
+                    errorMessage += $" {error.Description}";
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            // En caso de que ocurra alguna excepción durante el proceso
+            errorMessage = $"Error: {ex.Message}";
+        }
+    }
+}
+

@@ -1,0 +1,21 @@
+﻿@page "/logout"
+@using Microsoft.AspNetCore.Identity
+@using TEST.Modelos
+
+@inject NavigationManager NavigationManager
+
+<h3>Logout</h3>
+
+@code {
+    [Inject] private SignInManager<Usuario> _signInManager { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Cierra sesión
+        await _signInManager.SignOutAsync();
+
+        NavigationManager.NavigateTo("/", forceLoad: true);
+        
+    }
+    
+}

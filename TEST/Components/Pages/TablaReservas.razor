@@ -1,0 +1,205 @@
+﻿@page "/tablaReservas"
+@attribute [StreamRendering(true)]
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Radzen
+@using Radzen.Blazor
+@using TEST.Controllers.Habitaciones
+@using TEST.Controllers.Reservas
+@using TEST.Modelos
+@using TEST.Modelos.DTOs
+
+@inject NavigationManager NavigationManager
+@inject IJSRuntime jsRuntime
+@inject IReservasController ReservasController
+@inject IHabitacionesController HabitacionesController
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject UserManager<Usuario> UserManager
+
+
+<h2>PACIENTES</h2>
+
+@if (reservaDto == null)
+{
+    <span class="loader"></span>
+}
+else if (!reservaDto.Any())
+{
+    <br/>
+    <br/>
+    <br/>
+    <br/>
+    <br/>
+    <br/>
+    <br/>
+
+    <p>No hay ninguna reserva hecha</p>
+
+    <RadzenButton Text="Botón Administrador" ButtonStyle="ButtonStyle.Danger" Click="@LlevarReservas" />
+}
+else
+{
+    <RadzenRow AlignItems="AlignItems.Center">
+        <RadzenColumn class="">
+            <p>@selectedReserva.FirstOrDefault()?.IdReserva</p>
+        </RadzenColumn>
+    </RadzenRow>
+
+    <RadzenDataGrid @ref=grid
+                    AllowFiltering="true"
+                    AllowColumnResize="true"
+                    AllowAlternatingRows="false"
+                    FilterMode="FilterMode.Simple"
+                    AllowSorting="true"
+                    PageSize="7"
+                    AllowPaging="true"
+                    PagerHorizontalAlign="HorizontalAlign.Left"
+                    ShowPagingSummary="true"
+                    Data="@reservaDto"
+                    ColumnWidth="300px"
+                    SelectionMode="DataGridSelectionMode.Single"
+                    @bind-Value=@selectedReserva>
+
+        <Columns>
+            
+            @if (isAdmin)
+            {
+                <RadzenDataGridColumn Property="IdReserva" Filterable="true" Title="Código" Width="50px" TextAlign="TextAlign.Center" Frozen="true" />
+                <RadzenDataGridColumn Title="NIF" Width="120px" Filterable="true">
+                    <Template Context="data">
+                        @GetNifForReserva(data)
+                    </Template>
+                </RadzenDataGridColumn>
+            }
+            <RadzenDataGridColumn Property="NumeroH" Title="Habitacion" Filterable="true" Width="50px" />
+            <RadzenDataGridColumn Property="FechaEntrada" Title="Fecha de entrada" Filterable="true" Width="50px" />
+            <RadzenDataGridColumn Property="FechaSalida" Title="Fecha de salida" Filterable="true" Width="50px" />
+
+            <!-- Mostrar columna solo si el usuario es admin -->
+            @if (isAdmin)
+            {
+                <RadzenDataGridColumn Filterable="false" Width="50px" Sortable="false" TextAlign="TextAlign.Center">
+                    <Template Context="data">
+                        <RadzenButton Click=@(args => EliminarReserva(data)) Text="Eliminar" ButtonStyle="ButtonStyle.Danger" />
+                    </Template>
+                </RadzenDataGridColumn>
+
+                <!-- Columna para el botón de edición -->
+                <RadzenDataGridColumn Width="50px" TextAlign="TextAlign.Center">
+                    <Template Context="data">
+                        <RadzenButton Click=@(args => EditarReserva(data)) Text="Editar" ButtonStyle="ButtonStyle.Info" />
+                    </Template>
+                </RadzenDataGridColumn>
+            }
+
+            <RadzenDataGridColumn Filterable="false" Width="50px" Sortable="false" TextAlign="TextAlign.Right">
+                <Template Context="data">
+                    <RadzenButton Click=@(args => DescargarPdf(data)) Text="Descargar" ButtonStyle="ButtonStyle.Primary" />
+                </Template>
+            </RadzenDataGridColumn>
+        </Columns>
+    </RadzenDataGrid>
+}
+
+@code {
+    RadzenDataGrid<ReservaDTO> grid;
+    IEnumerable<ReservaDTO>? reservaDto = null;
+    IList<ReservaDTO>? selectedReserva = null;
+    private string? userId { get; set; }
+    private bool isAdmin = false; // Para verificar si el usuario tiene rol de administrador
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        // Obtener el ID del usuario autenticado
+        userId = await UserManager.GetUserIdAsync(await UserManager.GetUserAsync(user));
+
+        // Verificar si el usuario tiene el rol de "Administrador"
+        var usuario = await UserManager.GetUserAsync(user);
+        isAdmin = await UserManager.IsInRoleAsync(usuario, "admin");
+
+        // Si es administrador, obtiene todas las reservas
+        if (isAdmin)
+        {
+            // Obtener todas las reservas
+            reservaDto = await ReservasController.GetReservas();
+        }
+        else
+        {
+            // Si no es administrador, solo obtener las reservas del usuario logueado
+            var todasReservas = await ReservasController.GetReservas();
+            reservaDto = todasReservas.Where(r => r.IdUsuario == userId).ToList();
+        }
+
+        // Seleccionar el primer elemento como predeterminado si existen reservas
+        selectedReserva = reservaDto.Take(1).ToList();
+    }
+
+    private async Task DescargarPdf(ReservaDTO reserva)
+    {
+        // Obtener el usuario asociado a la reserva para obtener el NIF
+        var usuario = await UserManager.FindByIdAsync(reserva.IdUsuario);
+
+        // Obtener el NIF (suponiendo que tienes una propiedad llamada 'Nif' en el modelo Usuario)
+        string nif = usuario?.Nif ?? "No disponible";  // Si el NIF no está disponible, mostrar "No disponible"
+
+        // Formatear las fechas, si son nulas, pasar "No disponible"
+        string fechaEntrada = reserva.FechaEntrada?.ToString("yyyy-MM-dd") ?? "No disponible";
+        string fechaSalida = reserva.FechaSalida?.ToString("yyyy-MM-dd") ?? "No disponible";
+        string fechaReserva = reserva.FechaReserva?.ToString("yyyy-MM-dd") ?? "No disponible";
+
+        decimal noches = (reserva.FechaSalida - reserva.FechaEntrada).Value.Days;
+
+        decimal precioNoche = reserva.Total / noches;
+
+        // Invocar la función JavaScript 'GenerarPDF' con todos los datos de la reserva
+        await jsRuntime.InvokeVoidAsync("GenerarPDF",
+            reserva.IdReserva,
+            nif,
+            reserva.NumeroH,
+            fechaEntrada,
+            fechaSalida,
+            fechaReserva,
+            precioNoche,
+            reserva.Total);
+    }
+
+    private void LlevarReservas()
+    {
+        // Lógica del botón para administradores
+        // Aquí puedes redirigir, mostrar información adicional, o realizar alguna acción.
+        NavigationManager.NavigateTo("/reserva");
+    }
+
+    private async Task EliminarReserva(ReservaDTO reserva)
+    {
+        // Aquí puedes agregar lógica para eliminar la reserva de la base de datos
+        var respuesta = await jsRuntime.InvokeAsync<bool>("confirm", "¿Estás seguro de que quieres eliminar esta reserva?");
+        if (respuesta)
+        {
+            await ReservasController.EliminarReserva(reserva.IdReserva); // Llamar a tu método en el controller que elimina la reserva
+            reservaDto = reservaDto.Where(r => r.IdReserva != reserva.IdReserva).ToList(); // Actualizar la lista de reservas eliminando la que ya fue eliminada
+        }
+    }
+
+    // Método para redirigir a la página de edición de la reserva
+    private void EditarReserva(ReservaDTO reserva)
+    {
+        // Redirigir a la página de edición pasando el ID de la reserva
+        NavigationManager.NavigateTo($"/editarReserva/{reserva.IdReserva}");
+    }
+
+    private string GetNifForReserva(ReservaDTO reserva)
+    {
+        // Obtener el usuario asociado a la reserva de forma síncrona
+        var usuario = UserManager.FindByIdAsync(reserva.IdUsuario).Result;
+        
+        // Devolver el NIF, si está disponible
+        return usuario?.Nif ?? "No disponible"; // Si no tiene NIF, mostrar "No disponible"
+    }
+}

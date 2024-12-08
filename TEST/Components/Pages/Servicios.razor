@@ -1,0 +1,319 @@
+﻿@page "/servicios"
+@attribute [StreamRendering(true)]
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Radzen
+@using Radzen.Blazor
+@using TEST.Controllers.Habitaciones
+@using TEST.Controllers.Reservas
+@using TEST.Controllers.Servicios
+@using TEST.Controllers.ServiciosUsuarios
+@using TEST.Modelos
+@using TEST.Modelos.DTOs
+
+@inject NavigationManager NavigationManager
+@inject IJSRuntime jsRuntime
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject UserManager<Usuario> UserManager
+@inject IServiciosController ServiciosController
+@inject IServiciosUsuariosController ServiciosUsuarios
+
+<style>
+
+    body {
+        font-family: 'Bodoni Moda', serif;
+    }
+
+    .Sform {
+        max-width: 600px;
+        margin: 100px auto;
+        background: #ffffff;
+        padding: 30px;
+        border-radius: 10px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+
+        .Sform h3 {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 20px;
+        }
+
+        .Sform label.form-label {
+            font-weight: 600;
+            margin-bottom: 8px;
+            font-size: 14px;
+            color: #333;
+        }
+
+        .Sform input.form-control,
+        .Sform select.form-control {
+            width: 100%;
+            max-width: 500px;
+            padding: 12px;
+            margin-bottom: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+
+            .Sform input.form-control:focus,
+            .Sform select.form-control:focus {
+                border-color: #4CAF50;
+                box-shadow: 0 0 5px rgba(76, 175, 80, 0.5);
+            }
+
+        .Sform .btn {
+            padding: 12px 25px;
+            font-size: 14px;
+            border-radius: 4px;
+            transition: background-color 0.3s;
+            cursor: pointer;
+        }
+
+        .Sform .btn-primary {
+            background-color: #4CAF50;
+            border: none;
+            color: white;
+        }
+
+            .Sform .btn-primary:hover {
+                background-color: #45a049;
+            }
+
+        .Sform .btn-warning {
+            background-color: #ff9800;
+            border: none;
+            color: white;
+        }
+
+            .Sform .btn-warning:hover {
+                background-color: #fb8c00;
+            }
+
+        .Sform .alert-danger {
+            color: #d9534f;
+            background-color: #f2dede;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+
+        /* Botón "No quiero ningún servicio" */
+        .Sform input.btn-warning {
+            margin-top: 10px;
+        }
+
+        /* Añadir espacio entre las columnas */
+        .Sform .RadzenColumn {
+            padding-right: 15px;
+            padding-left: 15px;
+        }
+
+    .btn {
+        border-radius: 8px;
+        padding: 10px;
+        font-size: 16px;
+        font-weight: bold;
+        transition: background 0.3s;
+        width: 100%;
+    }
+
+    .btn-success {
+        background: #4caf50;
+        border: none;
+        color: white;
+    }
+
+        .btn-success:hover {
+            background: #388e3c;
+        }
+
+    .btn-primary {
+        background: #4a90e2;
+        border: none;
+        color: white;
+    }
+
+        .btn-primary:hover {
+            background: #357ab8;
+        }
+
+    .btn-warning {
+        background: #ff9800;
+        border: none;
+        color: white;
+    }
+
+        .btn-warning:hover {
+            background: #e68900;
+        }
+
+    .alert {
+        font-size: 14px;
+        margin-top: 15px;
+        color: red;
+    }
+
+    .rz-tabview-nav {
+        display: block; /* Sobrescribe el estilo predeterminado */
+    }
+
+
+</style>
+
+
+
+
+<div class="Sform">
+    <h3>Servicios</h3>
+
+    @if (servicioUsuarioDto == null || servicios == null)
+    {
+        <span class="loader"></span>
+    }
+    else
+    {
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="alert alert-danger">@errorMessage</div>
+        }
+
+        <EditForm Model="servicioUsuarioDto" FormName="Servicios" OnValidSubmit="@HandleSubmit">
+            <RadzenFieldset Text="¿Desea algún servicio?">
+                <div class="mt-4">
+                    <RadzenStack Gap="1rem">
+                        <RadzenTabs SelectedIndex="0">
+                            <Tabs>
+                                <RadzenRow AlignItems="AlignItems.Center">
+                                    <RadzenColumn>
+                                        <!-- Selección de servicio -->
+                                        <RadzenRow>
+                                            <RadzenColumn>
+                                                <label class="form-label">Seleccione un servicio:</label>
+                                                <InputSelect class="form-control" @bind-Value="servicioUsuarioDto.Id_Servicio">
+                                                    <option value="0">Seleccione un servicio</option> <!-- Valor predeterminado -->
+                                                    @foreach (var servicio in servicios)
+                                                    {
+                                                        <option value="@servicio.Id_Servicio">@($"{servicio.Nombre} - Precio: {servicio.Precio} - Duración: 2 horas")</option>
+                                                    }
+                                                </InputSelect>
+                                            </RadzenColumn>
+                                        </RadzenRow>
+
+                                        <!-- Selección de fecha y hora -->
+                                        <RadzenRow>
+                                            <RadzenColumn>
+                                                <label class="form-label">Seleccione la fecha y hora:</label>
+                                                <input class="form-control" type="datetime-local" @bind="servicioUsuarioDto.Fecha" />
+                                            </RadzenColumn>
+                                        </RadzenRow>
+
+                                        <!-- Botones de acción -->
+                                        <RadzenRow>
+                                            <RadzenColumn>
+                                                <input class="btn btn-primary" type="submit" value="Guardar">
+                                            </RadzenColumn>
+                                        </RadzenRow>
+                                        <RadzenRow>
+                                            <RadzenColumn>
+                                                <input class="btn btn-warning" type="button" value="No quiero ningún servicio" @onclick="HandleCancel">
+                                            </RadzenColumn>
+                                        </RadzenRow>
+                                    </RadzenColumn>
+                                </RadzenRow>
+                            </Tabs>
+                        </RadzenTabs>
+                    </RadzenStack>
+                </div>
+            </RadzenFieldset>
+        </EditForm>
+    }
+</div>
+
+
+@code {
+    [SupplyParameterFromForm]
+    ServicioUsuarioDTO? servicioUsuarioDto { get; set; } = new ServicioUsuarioDTO();
+
+    [SupplyParameterFromForm]
+    IEnumerable<ServicioDTO?>? servicios { get; set; }
+
+    private string? userId { get; set; }
+    private string? errorMessage { get; set; } = null; // Mensaje de error
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        if (!user.Identity.IsAuthenticated)
+        {
+            NavigationManager.NavigateTo("/AccessDenied");
+            return;
+        }
+
+        var usuario = await UserManager.GetUserAsync(user);
+
+        userId = await UserManager.GetUserIdAsync(usuario);
+        servicios = await ServiciosController.GetServicios();
+    }
+
+    private async Task HandleSubmit()
+    {
+        // Reiniciar el mensaje de error
+        errorMessage = null;
+
+        // Validar si se seleccionó un servicio
+        if (servicioUsuarioDto.Id_Servicio == 0) // ID 0 indica que no se seleccionó nada
+        {
+            errorMessage = "Debe seleccionar un servicio.";
+            return;
+        }
+
+        if (servicioUsuarioDto.Fecha == default) // Validar que se seleccionó una fecha
+        {
+            errorMessage = "Debe seleccionar una fecha.";
+            return;
+        }
+
+        if (servicioUsuarioDto.Fecha == null || servicioUsuarioDto.Fecha == DateTime.MinValue)
+        {
+            errorMessage = "Debe seleccionar una fecha y hora.";
+            return;
+        }
+
+        // Validar si la fecha es previa a la actual
+        if (servicioUsuarioDto.Fecha.Value < DateTime.Now)
+        {
+            errorMessage = "No puede seleccionar una fecha previa a la actual.";
+            return;
+        }
+
+        // Validar si la hora está dentro del rango permitido
+        var hora = servicioUsuarioDto.Fecha.Value.Hour;
+        if (hora < 7 || hora >= 23)
+        {
+            errorMessage = "La hora debe estar entre las 7:00 AM y las 11:00 PM.";
+            return;
+        }
+
+        servicioUsuarioDto.Id_Usuario = userId;
+
+
+        await ServiciosUsuarios.CrearServicioUsuario(servicioUsuarioDto);
+        NavigationManager.NavigateTo("/");
+    }
+
+    private async Task HandleCancel()
+    {
+        bool cancelar = await jsRuntime.InvokeAsync<bool>("confirm", "Se perderán los datos introducidos. ¿Deseas cancelar la operación?");
+        if (cancelar)
+            NavigationManager.NavigateTo("/");
+    }
+
+
+}

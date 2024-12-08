@@ -1,0 +1,182 @@
+﻿@page "/editarServicio/{Id:int}"
+@attribute [StreamRendering(true)]
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Radzen
+@using Radzen.Blazor
+@using TEST.Controllers.Servicios
+@using TEST.Controllers.ServiciosUsuarios
+@using TEST.Modelos
+@using TEST.Modelos.DTOs
+
+@inject NavigationManager NavigationManager
+@inject IJSRuntime jsRuntime
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IServiciosUsuariosController ServiciosUsuariosController
+@inject IServiciosController ServiciosController
+
+<style>
+    .Sform {
+        margin-top: 80px;
+    }
+</style>
+
+<h3>Editar Reserva de Servicio</h3>
+
+<div class="Sform">
+    @if (servicioUsuarioDto == null || servicios == null)
+    {
+        <span class="loader"></span>
+    }
+    else
+    {
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="alert alert-danger">@errorMessage</div>
+        }
+
+        <EditForm Model="servicioUsuarioDto" FormName="EditarReserva" OnValidSubmit="@HandleSubmit">
+            <RadzenFieldset Text="Detalles de la Reserva">
+                <div class="mt-4">
+                    <RadzenStack Gap="1rem">
+                        <RadzenRow>
+                            <RadzenColumn>
+                                <label class="form-label">Servicio:</label>
+                                <InputSelect class="form-control" @bind-Value="servicioUsuarioDto.Id_Servicio">
+                                    <option value="0">Seleccione un servicio</option>
+                                    @foreach (var servicio in servicios)
+                                    {
+                                        <option value="@servicio.Id_Servicio">@($"{servicio.Nombre} - Precio: {servicio.Precio}")</option>
+                                    }
+                                </InputSelect>
+                            </RadzenColumn>
+                        </RadzenRow>
+                        <RadzenRow>
+                            <RadzenColumn>
+                                <label class="form-label">Fecha y hora:</label>
+                                <input class="form-control" type="datetime-local" @bind="servicioUsuarioDto.Fecha" />
+                            </RadzenColumn>
+                        </RadzenRow>
+                        <RadzenRow>
+                            <RadzenColumn>
+                                <input class="btn btn-primary" type="submit" value="Guardar">
+                            </RadzenColumn>
+                        </RadzenRow>
+                        <RadzenRow>
+                            <RadzenColumn>
+                                <input class="btn btn-warning" type="button" value="Cancelar" @onclick="HandleCancel">
+                            </RadzenColumn>
+                        </RadzenRow>
+                    </RadzenStack>
+                </div>
+            </RadzenFieldset>
+        </EditForm>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public int Id { get; set; } // ID de la reserva a editar
+
+    private ServicioUsuarioDTO? servicioUsuarioDto { get; set; } = null;
+    private IEnumerable<ServicioDTO>? servicios { get; set; } = null;
+    private string? errorMessage { get; set; } = null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var user = authState.User;
+
+            if (!user.Identity.IsAuthenticated)
+            {
+                NavigationManager.NavigateTo("/Account/AccessDenied");
+                return;
+            }
+
+            // Cargar datos de la reserva
+            servicioUsuarioDto = await ServiciosUsuariosController.GetServicioUsuarioById(Id);
+
+            if (servicioUsuarioDto == null)
+            {
+                errorMessage = "No se encontró la reserva especificada.";
+                return;
+            }
+
+            // Cargar lista de servicios disponibles
+            servicios = await ServiciosController.GetServicios();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Ocurrió un error al cargar los datos: {ex.Message}";
+        }
+    }
+
+    private async Task HandleSubmit()
+    {
+        try
+        {
+            errorMessage = null;
+
+            // Validaciones
+            if (servicioUsuarioDto == null)
+            {
+                errorMessage = "El modelo no es válido.";
+                return;
+            }
+
+            if (servicioUsuarioDto.Id_Servicio == 0)
+            {
+                errorMessage = "Debe seleccionar un servicio.";
+                return;
+            }
+
+            if (servicioUsuarioDto.Fecha == null || servicioUsuarioDto.Fecha == DateTime.MinValue)
+            {
+                errorMessage = "Debe seleccionar una fecha y hora.";
+                return;
+            }
+
+            if (servicioUsuarioDto.Fecha < DateTime.Now)
+            {
+                errorMessage = "No puede seleccionar una fecha pasada.";
+                return;
+            }
+
+            var hora = servicioUsuarioDto.Fecha.Value.Hour;
+            if (hora < 7 || hora >= 23)
+            {
+                errorMessage = "La hora debe estar entre las 7:00 AM y las 11:00 PM.";
+                return;
+            }
+
+            // Actualizar la reserva
+            var actualizado = ServiciosUsuariosController.ActualizarServicioUsuario(servicioUsuarioDto);
+
+            if (await actualizado)
+            {
+                NavigationManager.NavigateTo("/tablaServicios");
+            }
+            else
+            {
+                errorMessage = "No se pudo actualizar la reserva. Intente nuevamente.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Ocurrió un error al guardar los cambios: {ex.Message}";
+        }
+    }
+
+    private async Task HandleCancel()
+    {
+        bool cancelar = await jsRuntime.InvokeAsync<bool>("confirm", "Se perderán los cambios no guardados. ¿Deseas cancelar?");
+        if (cancelar)
+        {
+            NavigationManager.NavigateTo("/reservas");
+        }
+    }
+}

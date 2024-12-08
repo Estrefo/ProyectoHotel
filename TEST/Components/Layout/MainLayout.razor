@@ -1,0 +1,201 @@
+﻿@inherits LayoutComponentBase
+@using TEST.Components.Layout
+@using Microsoft.AspNetCore.Components.Authorization
+﻿@using Microsoft.AspNetCore.Identity
+@using TEST.Modelos
+
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject SignInManager<Usuario> SignInManager
+@inject UserManager<Usuario> UserManager
+@inject NavigationManager NavigationManager
+
+<style>
+
+    header {
+/*         background-color: #7bc5d4;
+ */        background-color: white;
+    }
+
+    .titulo {
+        font-family: "Bodoni Moda", serif;
+        font-optical-sizing: auto;
+        font-size: 30px;
+        font-style: normal;
+        color: darkblue;
+        margin-top: 10px
+    }
+
+    .header-container {
+        position: fixed;
+        z-index: 1000;
+        width: 100%;
+        display: flex;
+        align-items: center; /* Alinea verticalmente el logo y el menú */
+    }
+
+    .logo {
+        height: 40px; /* Tamaño de la imagen */
+        margin-right: 25px; /* Espacio entre la imagen y el menú */
+        
+    }
+
+    .snip1189 {
+
+         /* Esto hace que el menú se quede pegado al hacer scroll */
+        top: 0; /* Se posiciona en la parte superior cuando hace scroll */
+        z-index: 1000; /* Asegura que el menú esté por encima de otros elementos */
+        font-family: 'Raleway', Arial, sans-serif;
+        text-align: center;
+        text-transform: uppercase;
+        font-weight: 500;
+        letter-spacing: 1px;
+        margin-top: 7px;
+        
+    }
+
+        .snip1189 * {
+
+            -webkit-box-sizing: border-box;
+            box-sizing: border-box;
+            -webkit-transition: all 0.35s ease;
+            transition: all 0.35s ease;
+            border-block-color: #7bc5d4;
+        }
+
+        .snip1189 li {
+            display: inline-block;
+            list-style: outside none none;
+            margin: 0 0.7em;
+            padding: 0;
+        }
+
+        .snip1189 a {
+            padding: 0.5em 0.8em;
+            margin: 0.2em 0;
+            display: block;
+            color: darkblue;
+            position: relative;
+            text-decoration: none;
+        }
+
+            .snip1189 a:before,
+            .snip1189 a:after {
+                height: 14px;
+                width: 14px;
+                position: absolute;
+                content: '';
+                -webkit-transition: all 0.35s ease;
+                transition: all 0.35s ease;
+                opacity: 0;
+            }
+
+            .snip1189 a:before {
+                left: 0;
+                top: 0;
+                border-left: 3px solid #7bc5d4;
+                border-top: 3px solid #7bc5d4;
+                -webkit-transform: translate(100%, 50%);
+                transform: translate(100%, 50%);
+            }
+
+            .snip1189 a:after {
+                right: 0;
+                bottom: 0;
+                border-right: 3px solid #7bc5d4;
+                border-bottom: 3px solid #7bc5d4;
+                -webkit-transform: translate(-100%, -50%);
+                transform: translate(-100%, -50%);
+            }
+
+            .snip1189 a:hover,
+            .snip1189 .current a {
+                color: #7bc5d4;
+            }
+
+                .snip1189 a:hover:before,
+                .snip1189 .current a:before,
+                .snip1189 a:hover:after,
+                .snip1189 .current a:after {
+                    -webkit-transform: translate(0%, 0%);
+                    transform: translate(0%, 0%);
+                    opacity: 1;
+                }
+
+</style>
+
+<div class="page">
+    <main>
+        <header class="header-container">
+            <a>
+                <img src="logo.png" class="logo" alt="Logo" style="height: 100px; vertical-align: middle; margin-right: 10px;" />
+            </a>
+
+            <p class="titulo">Hotel Brisa Azul</p>
+
+            <ul class="snip1189">
+                <li><a href="/">Inicio</a></li>
+                @if (isAdmin) 
+                {
+                    <li><a href="/roles">Roles</a></li>
+                }
+                <li><a href="/reserva">Reservar</a></li>
+                <li><a href="/servicios">Servicios</a></li>
+                <li><a href="/Contacto">Contacto</a></li>
+                @if (isAuthenticated)
+                {
+                    <li>
+                        <a href="/tablaReservas" title="Manage">Mis Reservas</a>
+                    </li>
+                    <li>
+                        <a href="/tablaServicios" title="Manage">Mis Servicios</a>
+                    </li>
+                    <li>
+                        <a href="/logout" title="Manage">Logout</a>
+                    </li>
+                }
+                else
+                {
+                    <li><a href="/login">Login</a></li>
+                    <li><a href="/registro">Register</a></li>
+                }
+            </ul>
+        </header>
+
+        <article class="content px-4">
+            @Body
+        </article>
+    </main>
+</div>
+
+<div id="blazor-error-ui">
+    An unhandled error has occurred.
+    <a href="" class="reload">Reload</a>
+    <a class="dismiss">🗙</a>
+</div>
+
+@code {
+    private bool isAuthenticated;
+    private bool isAdmin;
+    private string userName;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        isAuthenticated = user.Identity?.IsAuthenticated ?? false;
+
+        if (isAuthenticated)
+        {
+            userName = await UserManager.GetUserNameAsync(await UserManager.GetUserAsync(user));
+
+            // Verificar si el usuario tiene el rol de "admin"
+            isAdmin = await UserManager.IsInRoleAsync(await UserManager.GetUserAsync(user), "admin");
+        }
+    }
+
+    private async Task Logout()
+    {
+        NavigationManager.NavigateTo("/logout");
+    }
+}
